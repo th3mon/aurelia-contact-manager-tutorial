@@ -22,7 +22,7 @@ define('app',['exports'], function (exports) {
   }
   exports.App = App;
 });
-define('contact-list',['exports', './web-api'], function (exports, _webApi) {
+define('contact-list',['exports', 'aurelia-event-aggregator', './web-api', './messages'], function (exports, _aureliaEventAggregator, _webApi, _messages) {
   'use strict';
 
   Object.defineProperty(exports, "__esModule", {
@@ -31,12 +31,20 @@ define('contact-list',['exports', './web-api'], function (exports, _webApi) {
   exports.ContactList = undefined;
   class ContactList {
     static inject() {
-      return [_webApi.WebAPI];
+      return [_webApi.WebAPI, _aureliaEventAggregator.EventAggregator];
     }
 
-    constructor(api) {
+    constructor(api, ea) {
       this.api = api;
       this.contacts = [];
+
+      ea.subscribe(_messages.ContactViewed, msg => this.select(msg.contact));
+      ea.subscribe(_messages.ContactUpdated, msg => {
+        let id = msg.contact.id,
+            found = this.contacts.find(x => x.id === id);
+
+        Object.assign(found, msg.contact);
+      });
     }
 
     created() {
@@ -237,7 +245,7 @@ define('resources/index',["exports"], function (exports) {
     //config.globalResources([]);
   }
 });
-define('contact-detail',['exports', './web-api', './utility'], function (exports, _webApi, _utility) {
+define('contact-detail',['exports', 'aurelia-event-aggregator', './web-api', './messages', './utility'], function (exports, _aureliaEventAggregator, _webApi, _messages, _utility) {
   'use strict';
 
   Object.defineProperty(exports, "__esModule", {
@@ -246,11 +254,12 @@ define('contact-detail',['exports', './web-api', './utility'], function (exports
   exports.ContactDetail = undefined;
   class ContactDetail {
     static inject() {
-      return [_webApi.WebAPI];
+      return [_webApi.WebAPI, _aureliaEventAggregator.EventAggregator];
     }
 
-    constructor(api) {
+    constructor(api, ea) {
       this.api = api;
+      this.ea = ea;
     }
 
     activate(params, routeConfig) {
@@ -260,6 +269,7 @@ define('contact-detail',['exports', './web-api', './utility'], function (exports
         this.contact = contact;
         this.routeConfig.navModel.setTitle(contact.firstName);
         this.originalContact = JSON.parse(JSON.stringify(contact));
+        this.ea.publish(new _messages.ContactViewed(this.contact));
       });
     }
 
@@ -272,12 +282,19 @@ define('contact-detail',['exports', './web-api', './utility'], function (exports
         this.contact = contact;
         this.routeConfig.navModel.setTitle(contact.firstName);
         this.originalContact = JSON.parse(JSON.stringify(contact));
+        this.ea.publish(new _messages.ContactUpdated(this.contact));
       });
     }
 
     canDeactivate() {
       if (!(0, _utility.areEqual)(this.originalContact, this.contact)) {
-        return confirm('You have unsaved changes. Are you sure you wish to leave?');
+        let result = confirm('You have unsaved changes. Are you sure you wish to leave?');
+
+        if (!result) {
+          this.ea.publish(new _messages.ContactViewed(this.contact));
+        }
+
+        return result;
       }
 
       return true;
@@ -287,6 +304,26 @@ define('contact-detail',['exports', './web-api', './utility'], function (exports
 });
 define('test',[], function () {
   "use strict";
+});
+define('messages',["exports"], function (exports) {
+  "use strict";
+
+  Object.defineProperty(exports, "__esModule", {
+    value: true
+  });
+  class ContactUpdated {
+    constructor(contact) {
+      this.contact = contact;
+    }
+  }
+
+  exports.ContactUpdated = ContactUpdated;
+  class ContactViewed {
+    constructor(contact) {
+      this.contact = contact;
+    }
+  }
+  exports.ContactViewed = ContactViewed;
 });
 define('text!app.html', ['module'], function(module) { module.exports = "<template>\n    <require from=\"bootstrap/css/bootstrap.css\"></require>\n    <require from=\"./styles.css\"></require>\n    <require from=\"./contact-list\"></require>\n\n    <nav class=\"navbar navbar-default navbar-fixed-top\" role=\"navigation\">\n        <div class=\"navbar-header\">\n            <a class=\"navbar-brand\" href=\"#\">\n                <i class=\"fa fa-user\"></i>\n                <span>Contacts</span>\n            </a>\n        </div>\n    </nav>\n\n    <div class=\"container\">\n        <div class=\"row\">\n            <contact-list class=\"col-md-4\"></contact-list>\n            <router-view class=\"col-md-8\"></router-view>\n        </div>\n    </div>\n</template>\n"; });
 define('text!styles.css', ['module'], function(module) { module.exports = "body { padding-top: 70px; }\n\nsection {\n  margin: 0 20px;\n}\n\na:focus {\n  outline: none;\n}\n\n.navbar-nav li.loader {\n    margin: 12px 24px 0 6px;\n}\n\n.no-selection {\n  margin: 20px;\n}\n\n.contact-list {\n  overflow-y: auto;\n  border: 1px solid #ddd;\n  padding: 10px;\n}\n\n.panel {\n  margin: 20px;\n}\n\n.button-bar {\n  right: 0;\n  left: 0;\n  bottom: 0;\n  border-top: 1px solid #ddd;\n  background: white;\n}\n\n.button-bar > button {\n  float: right;\n  margin: 20px;\n}\n\nli.list-group-item {\n  list-style: none;\n}\n\nli.list-group-item > a {\n  text-decoration: none;\n}\n\nli.list-group-item.active > a {\n  color: white;\n}\n"; });
