@@ -44,8 +44,11 @@ let contacts = [
 ];
 
 export class WebAPI {
-  isRequesting = false;
-  
+  // isRequesting = false;
+  constructor() {
+    this.isRequesting = false;
+  }
+
   getContactList(){
     this.isRequesting = true;
     return new Promise(resolve => {
