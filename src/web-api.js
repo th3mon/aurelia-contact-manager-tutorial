@@ -44,7 +44,6 @@ let contacts = [
 ];
 
 export class WebAPI {
-  // isRequesting = false;
   constructor() {
     this.isRequesting = false;
   }

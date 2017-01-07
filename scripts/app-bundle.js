@@ -1,10 +1,15 @@
-define('app',['exports'], function (exports) {
+define('app',['exports', './web-api'], function (exports, _webApi) {
   'use strict';
 
   Object.defineProperty(exports, "__esModule", {
     value: true
   });
+  exports.App = undefined;
   class App {
+    static inject() {
+      return [_webApi.WebAPI];
+    }
+
     configureRouter(config, router) {
       config.title = 'Contacts';
       config.map([{
@@ -21,6 +26,63 @@ define('app',['exports'], function (exports) {
     }
   }
   exports.App = App;
+});
+define('contact-detail',['exports', 'aurelia-event-aggregator', './web-api', './messages', './utility'], function (exports, _aureliaEventAggregator, _webApi, _messages, _utility) {
+  'use strict';
+
+  Object.defineProperty(exports, "__esModule", {
+    value: true
+  });
+  exports.ContactDetail = undefined;
+  class ContactDetail {
+    static inject() {
+      return [_webApi.WebAPI, _aureliaEventAggregator.EventAggregator];
+    }
+
+    constructor(api, ea) {
+      this.api = api;
+      this.ea = ea;
+    }
+
+    activate(params, routeConfig) {
+      this.routeConfig = routeConfig;
+
+      return this.api.getContactDetails(params.id).then(contact => {
+        this.contact = contact;
+        this.routeConfig.navModel.setTitle(contact.firstName);
+        this.originalContact = JSON.parse(JSON.stringify(contact));
+        this.ea.publish(new _messages.ContactViewed(this.contact));
+      });
+    }
+
+    get canSave() {
+      return this.contact.firstName && this.contact.lastName && !this.api.isRequesting;
+    }
+
+    save() {
+      this.api.saveContact(this.contact).then(contact => {
+        this.contact = contact;
+        this.routeConfig.navModel.setTitle(contact.firstName);
+        this.originalContact = JSON.parse(JSON.stringify(contact));
+        this.ea.publish(new _messages.ContactUpdated(this.contact));
+      });
+    }
+
+    canDeactivate() {
+      if (!(0, _utility.areEqual)(this.originalContact, this.contact)) {
+        let result = confirm('You have unsaved changes. Are you sure you wish to leave?');
+
+        if (!result) {
+          this.ea.publish(new _messages.ContactViewed(this.contact));
+        }
+
+        return result;
+      }
+
+      return true;
+    }
+  }
+  exports.ContactDetail = ContactDetail;
 });
 define('contact-list',['exports', 'aurelia-event-aggregator', './web-api', './messages'], function (exports, _aureliaEventAggregator, _webApi, _messages) {
   'use strict';
@@ -107,6 +169,26 @@ define('main',['exports', './environment'], function (exports, _environment) {
     aurelia.start().then(() => aurelia.setRoot());
   }
 });
+define('messages',["exports"], function (exports) {
+  "use strict";
+
+  Object.defineProperty(exports, "__esModule", {
+    value: true
+  });
+  class ContactUpdated {
+    constructor(contact) {
+      this.contact = contact;
+    }
+  }
+
+  exports.ContactUpdated = ContactUpdated;
+  class ContactViewed {
+    constructor(contact) {
+      this.contact = contact;
+    }
+  }
+  exports.ContactViewed = ContactViewed;
+});
 define('no-selection',['exports'], function (exports) {
   'use strict';
 
@@ -177,7 +259,6 @@ define('web-api',['exports'], function (exports) {
   }];
 
   class WebAPI {
-    // isRequesting = false;
     constructor() {
       this.isRequesting = false;
     }
@@ -234,100 +315,60 @@ define('web-api',['exports'], function (exports) {
   }
   exports.WebAPI = WebAPI;
 });
-define('resources/index',["exports"], function (exports) {
-  "use strict";
+define('resources/index',['exports'], function (exports) {
+  'use strict';
 
   Object.defineProperty(exports, "__esModule", {
     value: true
   });
   exports.configure = configure;
   function configure(config) {
-    //config.globalResources([]);
+    config.globalResources(['./elements/loading-indicator']);
   }
 });
-define('contact-detail',['exports', 'aurelia-event-aggregator', './web-api', './messages', './utility'], function (exports, _aureliaEventAggregator, _webApi, _messages, _utility) {
+define('resources/elements/loading-indicator',['exports', 'nprogress', 'aurelia-framework'], function (exports, _nprogress, _aureliaFramework) {
   'use strict';
 
   Object.defineProperty(exports, "__esModule", {
     value: true
   });
-  exports.ContactDetail = undefined;
-  class ContactDetail {
-    static inject() {
-      return [_webApi.WebAPI, _aureliaEventAggregator.EventAggregator];
-    }
+  exports.LoadingIndicator = undefined;
 
-    constructor(api, ea) {
-      this.api = api;
-      this.ea = ea;
-    }
+  var nprogress = _interopRequireWildcard(_nprogress);
 
-    activate(params, routeConfig) {
-      this.routeConfig = routeConfig;
+  function _interopRequireWildcard(obj) {
+    if (obj && obj.__esModule) {
+      return obj;
+    } else {
+      var newObj = {};
 
-      return this.api.getContactDetails(params.id).then(contact => {
-        this.contact = contact;
-        this.routeConfig.navModel.setTitle(contact.firstName);
-        this.originalContact = JSON.parse(JSON.stringify(contact));
-        this.ea.publish(new _messages.ContactViewed(this.contact));
-      });
-    }
-
-    get canSave() {
-      return this.contact.firstName && this.contact.lastName && !this.api.isRequesting;
-    }
-
-    save() {
-      this.api.saveContact(this.contact).then(contact => {
-        this.contact = contact;
-        this.routeConfig.navModel.setTitle(contact.firstName);
-        this.originalContact = JSON.parse(JSON.stringify(contact));
-        this.ea.publish(new _messages.ContactUpdated(this.contact));
-      });
-    }
-
-    canDeactivate() {
-      if (!(0, _utility.areEqual)(this.originalContact, this.contact)) {
-        let result = confirm('You have unsaved changes. Are you sure you wish to leave?');
-
-        if (!result) {
-          this.ea.publish(new _messages.ContactViewed(this.contact));
+      if (obj != null) {
+        for (var key in obj) {
+          if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key];
         }
-
-        return result;
       }
 
-      return true;
+      newObj.default = obj;
+      return newObj;
     }
   }
-  exports.ContactDetail = ContactDetail;
-});
-define('test',[], function () {
-  "use strict";
-});
-define('messages',["exports"], function (exports) {
-  "use strict";
 
-  Object.defineProperty(exports, "__esModule", {
-    value: true
+  let LoadingIndicator = exports.LoadingIndicator = (0, _aureliaFramework.decorators)((0, _aureliaFramework.noView)(['nprogress/nprogress.css']), (0, _aureliaFramework.bindable)({
+    name: 'loading',
+    defaultValue: false
+  })).on(class {
+    loadingChanged(newValue) {
+      if (newValue) {
+        nprogress.start();
+      } else {
+        nprogress.done();
+      }
+    }
   });
-  class ContactUpdated {
-    constructor(contact) {
-      this.contact = contact;
-    }
-  }
-
-  exports.ContactUpdated = ContactUpdated;
-  class ContactViewed {
-    constructor(contact) {
-      this.contact = contact;
-    }
-  }
-  exports.ContactViewed = ContactViewed;
 });
-define('text!app.html', ['module'], function(module) { module.exports = "<template>\n    <require from=\"bootstrap/css/bootstrap.css\"></require>\n    <require from=\"./styles.css\"></require>\n    <require from=\"./contact-list\"></require>\n\n    <nav class=\"navbar navbar-default navbar-fixed-top\" role=\"navigation\">\n        <div class=\"navbar-header\">\n            <a class=\"navbar-brand\" href=\"#\">\n                <i class=\"fa fa-user\"></i>\n                <span>Contacts</span>\n            </a>\n        </div>\n    </nav>\n\n    <div class=\"container\">\n        <div class=\"row\">\n            <contact-list class=\"col-md-4\"></contact-list>\n            <router-view class=\"col-md-8\"></router-view>\n        </div>\n    </div>\n</template>\n"; });
+define('text!app.html', ['module'], function(module) { module.exports = "<template>\n    <require from=\"bootstrap/css/bootstrap.css\"></require>\n    <require from=\"./styles.css\"></require>\n    <require from=\"./contact-list\"></require>\n\n    <nav class=\"navbar navbar-default navbar-fixed-top\" role=\"navigation\">\n        <div class=\"navbar-header\">\n            <a class=\"navbar-brand\" href=\"#\">\n                <i class=\"fa fa-user\"></i>\n                <span>Contacts</span>\n            </a>\n        </div>\n    </nav>\n\n    <loading-indicator loading.bind=\"router.isNavigating || api.isRequesting\"></loading-indicator>\n\n    <div class=\"container\">\n        <div class=\"row\">\n            <contact-list class=\"col-md-4\"></contact-list>\n            <router-view class=\"col-md-8\"></router-view>\n        </div>\n    </div>\n</template>\n"; });
 define('text!styles.css', ['module'], function(module) { module.exports = "body { padding-top: 70px; }\n\nsection {\n  margin: 0 20px;\n}\n\na:focus {\n  outline: none;\n}\n\n.navbar-nav li.loader {\n    margin: 12px 24px 0 6px;\n}\n\n.no-selection {\n  margin: 20px;\n}\n\n.contact-list {\n  overflow-y: auto;\n  border: 1px solid #ddd;\n  padding: 10px;\n}\n\n.panel {\n  margin: 20px;\n}\n\n.button-bar {\n  right: 0;\n  left: 0;\n  bottom: 0;\n  border-top: 1px solid #ddd;\n  background: white;\n}\n\n.button-bar > button {\n  float: right;\n  margin: 20px;\n}\n\nli.list-group-item {\n  list-style: none;\n}\n\nli.list-group-item > a {\n  text-decoration: none;\n}\n\nli.list-group-item.active > a {\n  color: white;\n}\n"; });
+define('text!contact-detail.html', ['module'], function(module) { module.exports = "<template>\n  <div class=\"panel panel-primary\">\n    <div class=\"panel-heading\">\n      <h3 class=\"panel-title\">Profile</h3>\n    </div>\n    <div class=\"panel-body\">\n      <form role=\"form\" class=\"form-horizontal\">\n        <div class=\"form-group\">\n          <label class=\"col-sm-2 control-label\">First Name</label>\n          <div class=\"col-sm-10\">\n            <input type=\"text\" placeholder=\"first name\" class=\"form-control\" value.bind=\"contact.firstName\">\n          </div>\n        </div>\n\n        <div class=\"form-group\">\n          <label class=\"col-sm-2 control-label\">Last Name</label>\n          <div class=\"col-sm-10\">\n            <input type=\"text\" placeholder=\"last name\" class=\"form-control\" value.bind=\"contact.lastName\">\n          </div>\n        </div>\n\n        <div class=\"form-group\">\n          <label class=\"col-sm-2 control-label\">Email</label>\n          <div class=\"col-sm-10\">\n            <input type=\"text\" placeholder=\"email\" class=\"form-control\" value.bind=\"contact.email\">\n          </div>\n        </div>\n\n        <div class=\"form-group\">\n          <label class=\"col-sm-2 control-label\">Phone Number</label>\n          <div class=\"col-sm-10\">\n            <input type=\"text\" placeholder=\"phone number\" class=\"form-control\" value.bind=\"contact.phoneNumber\">\n          </div>\n        </div>\n      </form>\n    </div>\n  </div>\n\n  <div class=\"button-bar\">\n    <button class=\"btn btn-success\" click.delegate=\"save()\" disabled.bind=\"!canSave\">Save</button>\n  </div>\n</template>\n"; });
 define('text!contact-list.html', ['module'], function(module) { module.exports = "<template>\n  <div class=\"contact-list\">\n    <ul class=\"list-group\">\n      <li repeat.for=\"contact of contacts\" class=\"list-group-item ${contact.id === $parent.selectedId ? 'active' : ''}\">\n        <a route-href=\"route: contacts; params.bind: {id:contact.id}\" click.delegate=\"$parent.select(contact)\">\n          <h4 class=\"list-group-item-heading\">${contact.firstName} ${contact.lastName}</h4>\n          <p class=\"list-group-item-text\">${contact.email}</p>\n        </a>\n      </li>\n    </ul>\n  </div>\n</template>\n"; });
 define('text!no-selection.html', ['module'], function(module) { module.exports = "<template>\n  <div class=\"no-selection text-center\">\n    <h2>${message}</h2>\n  </div>\n</template>\n"; });
-define('text!contact-detail.html', ['module'], function(module) { module.exports = "<template>\n  <div class=\"panel panel-primary\">\n    <div class=\"panel-heading\">\n      <h3 class=\"panel-title\">Profile</h3>\n    </div>\n    <div class=\"panel-body\">\n      <form role=\"form\" class=\"form-horizontal\">\n        <div class=\"form-group\">\n          <label class=\"col-sm-2 control-label\">First Name</label>\n          <div class=\"col-sm-10\">\n            <input type=\"text\" placeholder=\"first name\" class=\"form-control\" value.bind=\"contact.firstName\">\n          </div>\n        </div>\n\n        <div class=\"form-group\">\n          <label class=\"col-sm-2 control-label\">Last Name</label>\n          <div class=\"col-sm-10\">\n            <input type=\"text\" placeholder=\"last name\" class=\"form-control\" value.bind=\"contact.lastName\">\n          </div>\n        </div>\n\n        <div class=\"form-group\">\n          <label class=\"col-sm-2 control-label\">Email</label>\n          <div class=\"col-sm-10\">\n            <input type=\"text\" placeholder=\"email\" class=\"form-control\" value.bind=\"contact.email\">\n          </div>\n        </div>\n\n        <div class=\"form-group\">\n          <label class=\"col-sm-2 control-label\">Phone Number</label>\n          <div class=\"col-sm-10\">\n            <input type=\"text\" placeholder=\"phone number\" class=\"form-control\" value.bind=\"contact.phoneNumber\">\n          </div>\n        </div>\n      </form>\n    </div>\n  </div>\n\n  <div class=\"button-bar\">\n    <button class=\"btn btn-success\" click.delegate=\"save()\" disabled.bind=\"!canSave\">Save</button>\n  </div>\n</template>\n"; });
 //# sourceMappingURL=app-bundle.js.map
